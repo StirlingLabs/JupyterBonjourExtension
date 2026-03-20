@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --python 3.13
+      - run: uv run ruff check
+      - run: uv run ty check
+
+  test:
+    needs: lint
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        jupyter-server: ["~=2.16.0", "~=2.17.0"]
+        exclude:
+          - os: macos-latest
+            jupyter-server: "~=2.16.0"
+          - os: windows-latest
+            jupyter-server: "~=2.16.0"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen --python ${{ matrix.python-version }}
+      - name: Pin jupyter-server version
+        run: uv pip install --upgrade "jupyter-server${{ matrix.jupyter-server }}"
+      - name: Run tests
+        run: uv run pytest -v --tb=short
+
+  test-prerelease:
+    if: github.event_name == 'workflow_dispatch'
+    needs: lint
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install with prerelease jupyter-server
+        run: |
+          uv sync --frozen --python 3.13
+          uv pip install --pre --upgrade "jupyter-server"
+      - name: Run tests
+        run: uv run pytest -v --tb=short

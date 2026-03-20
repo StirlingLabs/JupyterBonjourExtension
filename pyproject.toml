@@ -2,12 +2,36 @@
 name = "jupyter-bonjour"
 version = "0.1.0"
 description = "mDNS/Bonjour service discovery for Jupyter Server"
+readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
+authors = [
+    { name = "Robert J Spencer", email = "robert.spencer@stirlinglabs.com" },
+]
+maintainers = [
+    { name = "Stirling Labs", email = "hello@stirlinglabs.com" },
+]
+classifiers = [
+    "Framework :: Jupyter",
+    "Framework :: Jupyter :: JupyterLab",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "jupyter-server>=2.0.0",
     "zeroconf>=0.80.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/StirlingLabs/JupyterBonjourExtension"
+Source = "https://github.com/StirlingLabs/JupyterBonjourExtension"
+Issues = "https://github.com/StirlingLabs/JupyterBonjourExtension/issues"
+Organization = "https://stirlinglabs.com"
 
 [project.entry-points."jupyter_server_extension_points"]
 jupyter_bonjour = "jupyter_bonjour"
@@ -39,4 +63,5 @@ dev = [
     "pytest-asyncio>=0.23",
     "pytest-jupyter[server]>=0.10",
     "ruff>=0.9",
+    "ty>=0.0.23",
 ]
