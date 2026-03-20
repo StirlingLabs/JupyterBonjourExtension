@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 SERVICE_TYPE = "_jupyter._tcp.local."
 _TXT_VALUE_MAX_BYTES = 255
+_DNS_LABEL_MAX_BYTES = 63
 _CREDENTIAL_KEY_PATTERN = re.compile(r"^(token|password|secret|credential|api.?key)", re.IGNORECASE)
 
 
@@ -38,6 +39,24 @@ def truncate_to_txt_limit(value: str, *, limit: int = _TXT_VALUE_MAX_BYTES) -> s
     truncated = encoded[: limit - len(suffix)]
     # Avoid splitting a multi-byte character by decoding with error handling
     return truncated.decode("utf-8", errors="ignore").rsplit(",", 1)[0] + ",..."
+
+
+def truncate_service_name(name: str, *, limit: int = _DNS_LABEL_MAX_BYTES) -> str:
+    """Truncate an mDNS service instance name to fit in a single DNS label.
+
+    DNS labels are limited to 63 bytes.  If *name* exceeds that, it is
+    truncated and an ellipsis (``…``) is appended, staying within *limit*.
+    Multi-byte UTF-8 characters are never split.
+    """
+    encoded = name.encode("utf-8")
+    if len(encoded) <= limit:
+        return name
+    suffix = "…".encode()  # 3 bytes
+    truncated = encoded[: limit - len(suffix)]
+    # Avoid splitting a multi-byte character
+    result = truncated.decode("utf-8", errors="ignore") + "…"
+    logger.warning("Service name truncated from %d to %d bytes: %r", len(encoded), len(result.encode("utf-8")), result)
+    return result
 
 
 def _validate_properties(properties: dict[str, str]) -> None:
@@ -69,14 +88,14 @@ class BonjourAdvertiser:
         _validate_properties(properties)
 
         self._port = port
-        self._service_name = service_name
+        self._service_name = truncate_service_name(service_name)
         self._properties = dict(properties)
         self._parsed_addresses = list(parsed_addresses)
 
         hostname = socket.gethostname()
         # Avoid double .local suffix — gethostname() often returns "host.local" on macOS
         server = f"{hostname}." if hostname.endswith(".local") else f"{hostname}.local."
-        fqdn = f"{service_name}.{SERVICE_TYPE}"
+        fqdn = f"{self._service_name}.{SERVICE_TYPE}"
 
         self._info = ServiceInfo(
             SERVICE_TYPE,

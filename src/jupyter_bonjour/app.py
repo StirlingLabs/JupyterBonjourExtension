@@ -12,7 +12,12 @@ from jupyter_server.extension.application import ExtensionApp
 from traitlets import Bool, Dict, Set, Unicode
 
 from ._version import __version__
-from .advertiser import BonjourAdvertiser, strip_trailing_zeros, truncate_to_txt_limit
+from .advertiser import (
+    _DNS_LABEL_MAX_BYTES,
+    BonjourAdvertiser,
+    strip_trailing_zeros,
+    truncate_to_txt_limit,
+)
 
 _STRIP_PREFIX = re.compile(r"^(?:jupyterlab[-_]|jupyter[-_])")
 
@@ -51,6 +56,25 @@ def _detect_auth_type(serverapp: Any) -> str:
     if serverapp.identity_provider.token:
         return "token"
     return "none"
+
+
+def _build_default_service_name(port: int) -> str:
+    """Build a default mDNS service name that fits within the 63-byte DNS label limit.
+
+    The format is ``Jupyter on {hostname}:{port}``.  When the hostname is too
+    long the hostname portion is truncated (preserving the port, which is the
+    most important disambiguator on multi-server machines).
+    """
+    hostname = socket.gethostname()
+    suffix = f":{port}"
+    prefix = "Jupyter on "
+    budget = _DNS_LABEL_MAX_BYTES - len(prefix.encode("utf-8")) - len(suffix.encode("utf-8"))
+    host_bytes = hostname.encode("utf-8")
+    if len(host_bytes) > budget:
+        ellipsis = "…".encode()  # 3 bytes
+        host_bytes = host_bytes[: budget - len(ellipsis)]
+        hostname = host_bytes.decode("utf-8", errors="ignore") + "…"
+    return f"{prefix}{hostname}{suffix}"
 
 
 def _resolve_addresses(server_ip: str, allowed_interfaces: set[str]) -> list[str]:
@@ -191,7 +215,7 @@ class BonjourExtensionApp(ExtensionApp):
             self.log.warning("jupyter_bonjour: no advertisable addresses found; mDNS skipped")
             return
 
-        service_name = self.service_name or f"Jupyter on {socket.gethostname()}:{serverapp.port}"
+        service_name = self.service_name or _build_default_service_name(serverapp.port)
         properties = self._build_properties(serverapp)
 
         try:

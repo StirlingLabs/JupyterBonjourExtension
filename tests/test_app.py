@@ -8,6 +8,7 @@ import pytest
 
 from jupyter_bonjour.app import (
     BonjourExtensionApp,
+    _build_default_service_name,
     _detect_auth_type,
     _format_extension_list,
     _resolve_addresses,
@@ -134,6 +135,34 @@ def _make_mock_serverapp(
     serverapp.identity_provider.token = token
     serverapp.extension_manager.extensions = extensions or {}
     return serverapp
+
+
+# ---------------------------------------------------------------------------
+# _build_default_service_name tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildDefaultServiceName:
+    def test_short_hostname(self):
+        with patch("jupyter_bonjour.app.socket.gethostname", return_value="myhost"):
+            name = _build_default_service_name(8888)
+        assert name == "Jupyter on myhost:8888"
+
+    def test_long_hostname_truncated_preserves_port(self):
+        long_host = "sat12-dp154-b97b8b80-e27c-4f46-8aa9-789adc17c79a-CED78C8A7BC6.local"
+        with patch("jupyter_bonjour.app.socket.gethostname", return_value=long_host):
+            name = _build_default_service_name(49234)
+        assert len(name.encode("utf-8")) <= 63
+        assert ":49234" in name
+        assert name.startswith("Jupyter on ")
+
+    def test_result_fits_dns_label(self):
+        # Even an absurdly long hostname must yield a valid label
+        long_host = "x" * 200
+        with patch("jupyter_bonjour.app.socket.gethostname", return_value=long_host):
+            name = _build_default_service_name(12345)
+        assert len(name.encode("utf-8")) <= 63
+        assert ":12345" in name
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ from jupyter_bonjour.advertiser import (
     SERVICE_TYPE,
     BonjourAdvertiser,
     strip_trailing_zeros,
+    truncate_service_name,
     truncate_to_txt_limit,
 )
 
@@ -35,6 +36,41 @@ class TestStripTrailingZeros:
 
     def test_version_10_0(self):
         assert strip_trailing_zeros("10.0") == "10"
+
+
+class TestTruncateServiceName:
+    def test_short_name_unchanged(self):
+        assert truncate_service_name("Jupyter on myhost:8888") == "Jupyter on myhost:8888"
+
+    def test_exact_63_bytes_unchanged(self):
+        name = "a" * 63
+        assert truncate_service_name(name) == name
+
+    def test_long_name_truncated(self):
+        # Simulate a CI runner with a very long hostname
+        name = "Jupyter on sat12-dp154-b97b8b80-e27c-4f46-8aa9-789adc17c79a-CED78C8A7BC6.local:49230"
+        result = truncate_service_name(name)
+        assert len(result.encode("utf-8")) <= 63
+        assert result.endswith("…")
+
+    def test_multibyte_not_split(self):
+        # Fill up to the boundary with multi-byte chars (each é is 2 bytes)
+        name = "é" * 32  # 64 bytes > 63
+        result = truncate_service_name(name)
+        assert len(result.encode("utf-8")) <= 63
+        assert result.endswith("…")
+        # Should decode cleanly (no partial chars)
+        result.encode("utf-8").decode("utf-8")
+
+    def test_constructor_truncates_long_name(self):
+        long_name = "Jupyter on " + "x" * 80 + ":8888"
+        adv = BonjourAdvertiser(
+            8888,
+            service_name=long_name,
+            properties={},
+            parsed_addresses=["192.168.1.1"],
+        )
+        assert len(adv._service_name.encode("utf-8")) <= 63
 
 
 class TestTruncateToTxtLimit:
